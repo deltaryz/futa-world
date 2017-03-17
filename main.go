@@ -1,6 +1,8 @@
 // Server application for http://futa.world, an erotic pony-themed text adventure.
-// Currently supports telnet connections and also provides a web interface.
+// Currently supports telnet connections and also TODO: provide a web interface.
 package main
+
+// TODO: do I need to use an ampersand like &SomeStruct{} if I want to make a new one without using a newSomeStruct() function?
 
 import (
 	"fmt"
@@ -18,34 +20,36 @@ const webPort = 80
 // String displayed on connect
 const welcomeString = "\r\nWelcome to futa.world! This is version " + ver + ", created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
 
+const introMessage = "You are PLACEHOLDER_NAME, a young mare from Ponyville. You have awoken to find yourself in an unknown location, and all you know is that you are REALLY itching to fuck something with your massive futa schlong.\r\n\r\n"
+
 // init data types
 
 // locker utility to prevent map collision
 var plock sync.Mutex
 var tlock sync.Mutex
 
-// player map
-var players = make(map[string]*player)
+// Player map
+var Players = make(map[string]*Player)
 var tcpConnections = make(map[*tcp_server.Client]string)
 
 // GENERAL HELPER FUNCTIONS
 
-// Gets a player from the map, makes sure to wait until nothing else is accessing it
-func getPlayer(username string) (*player, bool) {
+// Gets a Player from the map, makes sure to wait until nothing else is accessing it
+func getPlayer(username string) (*Player, bool) {
 	plock.Lock()
 	defer plock.Unlock()
 
-	pl, exists := players[username]
+	pl, exists := Players[username]
 
 	return pl, exists
 }
 
-// Sets a player in the map, ignoring whether it exists or not
-func setPlayer(username string, p *player) bool {
+// Sets a Player in the map, ignoring whether it exists or not
+func setPlayer(username string, p *Player) bool {
 	plock.Lock()
 	defer plock.Unlock()
 
-	players[username] = p
+	Players[username] = p
 
 	return true
 }
@@ -70,16 +74,17 @@ func setTCPPlayer(conn *tcp_server.Client, username string) bool {
 }
 
 // Player object
-type player struct {
-	name    string   // Username given by the player
-	inv     itemList // Array of item objects currently owned by the player
-	pos     pos      // Room position in x/y coordinates on the map
-	health  int64    // take a wild guess
-	arousal int64    // she's a kinky fucker
+type Player struct {
+	name    string        `json:"name"`    // Username given by the Player
+	inv     ItemList      `json:"inv"`     // Array of Item objects currently owned by the Player
+	pos     pos           `json:"pos"`     // Room position in x/y coordinates on the map
+	world   map[pos]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
+	health  int64         `json:"health"`  // take a wild guess
+	arousal int64         `json:"arousal"` // she's a kinky fucker
 }
 
-// Stats returns a string with the player's stats
-func (p *player) Stats() string {
+// Stats returns a string with the Player's stats, used for game start & stats command
+func (p *Player) Stats() string {
 	info := ""
 
 	info += "Health: " + strconv.FormatInt(p.health, 10) + "\r\nArousal: " + strconv.FormatInt(p.arousal, 10)
@@ -87,93 +92,132 @@ func (p *player) Stats() string {
 	return info
 }
 
-// Create new player with beginning-game attributes
-func newPlayer(username string) *player {
-	result := &player{
+// Inventory returns a string describing the contents of the Player's inventory
+func (p *Player) Inventory() string {
+	info := ""
+	// TODO: finish inventory method
+	return info
+}
+
+// Create new Player with beginning-game attributes
+func newPlayer(username string) *Player {
+	result := &Player{
 		name:    username,
-		inv:     itemList{newDildo()},
+		inv:     ItemList{newDildo()},
 		pos:     pos{x: 0, y: 0},
 		health:  10,
-		arousal: 0,
+		arousal: 10,
 	}
 	return result
 }
 
-// Slice of items, such as an inventory or chest
-type itemList []*item
+// Slice of Items, such as an inventory or chest
+type ItemList []*Item
 
 // Position struct, for easy .pos.X
 type pos struct {
-	x int
-	y int
+	x int `json:"x"`
+	y int `json:"y"`
 }
 
-// generic item struct, inherited by all items
-type item struct {
-	name     string   // Name of the item
-	desc     string   // Short description of the item
-	labels   []string // Array of descriptive labels which apply to the item (think booru tagging)
-	weight   float32  // Weight of the item
-	owned    bool     // Is the item currently in the player's inventory?
-	location string   // States where in the room the item is (ground, wall, "the pedestal", etc) - unused if the item is currently owned
+// generic Item struct, inherited by all Items
+type Item struct {
+	name     string   `json:"name"`               // Name of the Item
+	desc     string   `json:"desc"`               // Short description of the Item
+	labels   []string `json:"labels"`             // Array of descriptive labels which apply to the Item (think booru tagging)
+	weight   float32  `json:"weight"`             // Weight of the Item
+	owned    bool     `json:"owned"`              // Is the Item currently in the Player's inventory?
+	location string   `json:"location,omitempty"` // States where in the room the Item is (ground, wall, "the pedestal", etc) - unused if the Item is currently owned
+	contents ItemList `json:"contents"`           // so i herd u liek items / Used for chests/containers to contain more items
 }
 
-// Pick up an item from the room
-func (i *item) pickUp() string {
+// Pick up an Item from the room
+func (i *Item) pickUp() string {
 	if !i.owned {
-		// TODO: pick up items
+		// TODO: pick up Items
 		return fmt.Sprintf("You pick up the %s.", i.name)
 	} else {
 		return "You already have the " + i.name + "!"
 	}
 }
 
-// Drop an item on the ground
-func (i *item) drop() string {
+// Drop an Item on the ground
+func (i *Item) drop() string {
 	if i.owned {
-		// TODO: drop items on ground
+		// TODO: drop Items on ground
 		return fmt.Sprintf("You drop the %s.", i.name)
 	} else {
 		return "You can't drop that, you aren't holding it!"
 	}
 }
 
-// Set the item to an error item
-func (i *item) makeError() error {
+// Set the Item to an error Item
+func (i *Item) makeError() error {
 	i.labels = []string{"err"}
 	i.location = ""
 	i.owned = false
-	i.desc = "Something went wrong with item generation. Please contact the developer."
+	i.desc = "Something went wrong with Item generation. Please contact the developer."
 	i.name = "Error Item"
 	i.weight = 696969
 
 	return nil
 }
 
-// Returns the name and description of the item
-func (i *item) getBasicInfo() []string {
+// Returns the name and description of the Item
+func (i *Item) getBasicInfo() []string {
 	return []string{i.name, i.desc}
 }
 
-// Instantiates a new item.
-// Please ensure that you initialize it with an item type.
-func newEmptyItem() *item {
-	return &item{}
+// Instantiates a new empty Item.
+// Please ensure that you initialize it with appropriate values before using.
+func newEmptyItem() *Item {
+	return &Item{}
 }
 
-// Initializes an item with Dildo properties
-func newDildo() *item {
-	result := &item{
+// Initializes an Item with Dildo properties
+func newDildo() *Item {
+	result := &Item{
 		desc: "A medium sized, unassuming dildo. It is purple.",
 		name: "Modest Dildo",
 	}
 	return result
 }
 
+// generic Room struct, is used to create each room
+type Room struct {
+	pos   pos      `json:"pos"`   // Position in the world of the room.
+	name  string   `json:"name"`  // Name of the room.
+	desc  string   `json:"desc"`  // Description of the room, output of "look" command
+	items ItemList `json:"items"` // Items contained in the room.
+	exits Exits    `json:"exits"` // Valid exits of the room
+}
+
+// Which exits of a room are valid exits?
+// This can be changed at runtime (unlocking doors)
+type Exits struct {
+	north bool `json:"north"`
+	south bool `json:"south"`
+	east  bool `json:"east"`
+	west  bool `json:"west"`
+}
+
+// create a new room based on given coordinates from the given world json
+func newRoom(coords pos) *Room { // TODO: receive json in argument
+	room := &Room{
+		pos:   coords,
+		name:  "",         // TODO: grab name from world json
+		desc:  "",         // TODO: grab desc from world json
+		items: ItemList{}, // TODO: grab items from world json
+		exits: Exits{},    // TODO: grab exits from world json
+	}
+
+	return room
+}
+
 // Main function
 func main() {
 
-	// TODO: save/load maps from file, automatic saving
+	// TODO: load master map json into variable
 
 	// TCP setup
 	server := tcp_server.New("localhost:" + strconv.FormatInt(telnetPort, 10))
@@ -210,13 +254,13 @@ func main() {
 			if len(args) > 0 {
 
 				// user is quitting game
-				if args[0] == "quit" {
+				if args[0] == "quit" || args[0] == "exit" {
 					c.Send("Thank you for playing futa.world!\r\n\r\n")
 					c.Close()
 				} else { // user is not quitting game
 
 					// pass command to the generic interpreter
-					msg, uname, needsMap := messageReceived(args, username, exists)
+					msg, uname, needsMap := messageReceived(args, username)
 
 					// if we need to map the connection to a username
 					if needsMap {
@@ -245,39 +289,44 @@ func main() {
 
 // Generic message handler function
 // Designed to be client/protocol-independent for maximum portability
-func messageReceived(args []string, username string, playerIsSet bool) (string, string, bool) {
+func messageReceived(args []string, username string) (string, string, bool) {
 
 	// start with empty string
 	response := ""
 	// only used for tcp connections, indicates whether a tcp mapping needs to be made
 	needsTcpMap := false
 
+	p, playerExists := getPlayer(username)
+
+	// which command did the Player use?
+	// just fyi this switch is gonna be FUCKING LONG
 	switch args[0] {
 
 	// User is attempting to log in
 	case "login":
 		if len(args) > 1 {
 			// TODO: sanitize login string
-			if playerIsSet {
+			if playerExists {
 				response += "You are already logged in!"
 			} else {
 				response += "Initializing game...\r\n"
-				username = args[1] // username is not set because player hasn't logged in yet
+				username = args[1] // username is not set because Player hasn't logged in yet
 				needsTcpMap = true // in case the client is tcp, unused otherwise
-				pl, existCheck := getPlayer(username)
-				// player already exists
-				if existCheck {
-					// TODO: passwords
+				// Player already exists
+				if playerExists {
 					response += "User exists, attempting to log in...\r\n\r\n"
-					fmt.Println("User " + pl.name + " succesfully logged in")
-					response += "You are a pony. aaaaa finish this later\r\n\r\n" + pl.Stats() // TODO: finish new game string
+					fmt.Println("User " + p.name + " succesfully logged in")
+					response += fmt.Sprintf("%s%s", introMessage, p.Stats()) // TODO: don't use the intro string here, also describe room
 				} else { // create new account
-					response += "Username does not exist, creating new player profile...\r\n\r\n"
-					ok := setPlayer(username, newPlayer(username))
-					tmpPlayer, ok := getPlayer(username)
-					if ok {
+					response += "Username does not exist, creating new Player profile...\r\n\r\n"
+					setPlayer(username, newPlayer(username)) // set Player in database
+					tmpPlayer, ok2 := getPlayer(username)    // get Player back from database to ensure successful creation
+					if ok2 {
 						fmt.Println("User " + tmpPlayer.name + " succesfully created account")
-						response += "You are a pony. aaaaa finish this later\r\n\r\n" + tmpPlayer.Stats() // TODO: finish new game string
+
+						// TODO: create world from json, store in player object
+
+						response += fmt.Sprintf("%s%s", introMessage, tmpPlayer.Stats()) // TODO: describe current room
 					} else {
 						fmt.Println("Account creation derped")
 						response += "An error occured with logging in."
@@ -290,8 +339,23 @@ func messageReceived(args []string, username string, playerIsSet bool) (string, 
 		}
 		break
 
+	// display the Player's stats
+	case "stats":
+		if playerExists {
+			response += p.Stats()
+		}
+		break
+
+	// list contents of inventory
+	case "inv":
+	case "inventory":
+		if playerExists {
+			response += p.Inventory()
+		}
+		break
+
 	default:
-		if playerIsSet {
+		if playerExists {
 			response += "Error: invalid command"
 		}
 		break
