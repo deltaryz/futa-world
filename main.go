@@ -15,6 +15,7 @@ const ver = "0.0.1"
 const telnetPort = 23
 const webPort = 80
 
+// String displayed on connect
 const welcomeString = "\r\nWelcome to futa.world! This is version " + ver + ", created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
 
 // init data types
