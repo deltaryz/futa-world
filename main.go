@@ -277,7 +277,7 @@ func messageReceived(args []string, username string, playerIsSet bool) (string, 
 					tmpPlayer, ok := getPlayer(username)
 					if ok {
 						fmt.Println("User " + tmpPlayer.name + " succesfully created account")
-						response += "You are a pony. aaaaa finish this later\r\n\r\n" + pl.Stats() // TODO: finish new game string
+						response += "You are a pony. aaaaa finish this later\r\n\r\n" + tmpPlayer.Stats() // TODO: finish new game string
 					} else {
 						fmt.Println("Account creation derped")
 						response += "An error occured with logging in."
