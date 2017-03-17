@@ -15,17 +15,15 @@ import (
 )
 
 // metadata constants
-// TODO: separate metadata constants strings into config file
+// TODO: separate these into config.json
 const ver = "0.0.1"
 const telnetPort = 23
 const webPort = 80
 
 // String displayed on connect
-// TODO: separate these into world json
+// TODO: separate these into world.json
 const welcomeString = "\r\nWelcome to futa.world! This is version " + ver + ", created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
 const introMessage = "You are PLACEHOLDER_NAME, a young mare from Ponyville. You have awoken to find yourself in an unknown location, and all you know is that you are REALLY itching to fuck something with your massive futa schlong.\r\n\r\n"
-
-// init data types
 
 // locker utility to prevent map collision
 var plock sync.Mutex
@@ -34,8 +32,6 @@ var tlock sync.Mutex
 // Player map
 var Players = make(map[string]*Player)
 var tcpConnections = make(map[*tcp_server.Client]string)
-
-// GENERAL HELPER FUNCTIONS
 
 // Gets a Player from the map, makes sure to wait until nothing else is accessing it
 func getPlayer(username string) (*Player, bool) {
@@ -90,7 +86,7 @@ type Player struct {
 func (p *Player) Stats() string {
 	info := ""
 
-	info += "Health: " + strconv.FormatInt(p.health, 10) + "\r\nArousal: " + strconv.FormatInt(p.arousal, 10)
+	info += "Health: " + strconv.FormatInt(p.health, 10) + "\r\nArousal: " + strconv.FormatInt(p.arousal, 10) // TODO: have a bool to enable/disable displaying of "nsfw" stats in world.json
 
 	return info
 }
@@ -148,7 +144,7 @@ func (i *Item) pickUp() string {
 func (i *Item) drop() string {
 	if i.owned {
 		// TODO: drop Items on ground
-		return fmt.Sprintf("You drop the %s.", i.name)
+		return fmt.Sprintf("You drop the %s onto the ground.", i.name)
 	} else {
 		return "You can't drop that, you aren't holding it!"
 	}
@@ -178,6 +174,7 @@ func newEmptyItem() *Item {
 }
 
 // Initializes an Item with Dildo properties
+// TODO: remove this, replace with default items field in world.json
 func newDildo() *Item {
 	result := &Item{
 		desc: "A medium sized, unassuming dildo. It is purple.",
@@ -258,7 +255,7 @@ func main() {
 
 				// user is quitting game
 				if args[0] == "quit" || args[0] == "exit" {
-					c.Send("Thank you for playing futa.world!\r\n\r\n")
+					c.Send("Thank you for playing futa.world!\r\n\r\n") // TODO: have this use global item string
 					c.Close()
 				} else { // user is not quitting game
 
