@@ -241,6 +241,10 @@ func main() {
 		fmt.Println("Error reading world file!\r\n" + worldErr.Error())
 	}
 
+	if configErr != nil || worldErr != nil {
+		os.Exit(69)
+	}
+
 	// TODO: load master map json into variable
 
 	// TCP setup
@@ -331,17 +335,18 @@ func messageReceived(args []string, username string) (string, string, bool) {
 	case "login":
 		if len(args) > 1 {
 			// TODO: sanitize login string
+			p2, playerExistsFromArg := getPlayer(args[1])
 			if playerExists {
-				response += "You are already logged in!"
+				response += fmt.Sprintf("You are already logged in as player: %s!", p.Name)
 			} else {
 				response += "Initializing game...\r\n"
 				username = args[1] // username is not set because Player hasn't logged in yet
 				needsTcpMap = true // in case the client is tcp, unused otherwise
 				// Player already exists
-				if playerExists {
+				if playerExistsFromArg {
 					response += "User exists, attempting to log in...\r\n\r\n"
-					fmt.Println("User " + p.Name + " succesfully logged in")
-					response += fmt.Sprintf("%s%s", introMessage, p.Stats()) // TODO: don't use the intro string here, also describe room
+					fmt.Println("User " + p2.Name + " succesfully logged in")
+					response += fmt.Sprintf("%s%s", introMessage, p2.Stats()) // TODO: don't use the intro string here, also describe room
 				} else { // create new account
 					response += "Username does not exist, creating new Player profile...\r\n\r\n"
 					setPlayer(username, newPlayer(username)) // set Player in database
