@@ -7,8 +7,10 @@ package main
 // TODO: do I need to use an ampersand like &SomeStruct{} if I want to make a new one without using a newSomeStruct() function?
 
 import (
+	"flag"
 	"fmt"
 	"github.com/firstrow/tcp_server"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,19 +76,19 @@ func setTCPPlayer(conn *tcp_server.Client, username string) bool {
 
 // Player object
 type Player struct {
-	name    string        `json:"name"`    // Username given by the Player
-	inv     ItemList      `json:"inv"`     // Array of Item objects currently owned by the Player
-	pos     pos           `json:"pos"`     // Room position in x/y coordinates on the map
-	world   map[pos]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
-	health  int64         `json:"health"`  // take a wild guess
-	arousal int64         `json:"arousal"` // she's a kinky fucker
+	Name    string        `json:"name"`    // Username given by the Player
+	Inv     ItemList      `json:"inv"`     // Array of Item objects currently owned by the Player
+	Pos     pos           `json:"pos"`     // Room position in x/y coordinates on the map
+	World   map[pos]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
+	Health  int64         `json:"health"`  // take a wild guess
+	Arousal int64         `json:"arousal"` // she's a kinky fucker
 }
 
 // Stats returns a string with the Player's stats, used for game start & stats command
 func (p *Player) Stats() string {
 	info := ""
 
-	info += "Health: " + strconv.FormatInt(p.health, 10) + "\r\nArousal: " + strconv.FormatInt(p.arousal, 10) // TODO: have a bool to enable/disable displaying of "nsfw" stats in world.json
+	info += "Health: " + strconv.FormatInt(p.Health, 10) + "\r\nArousal: " + strconv.FormatInt(p.Arousal, 10) // TODO: have a bool to enable/disable displaying of "nsfw" stats in world.json
 
 	return info
 }
@@ -101,11 +103,11 @@ func (p *Player) Inventory() string {
 // Create new Player with beginning-game attributes
 func newPlayer(username string) *Player {
 	result := &Player{
-		name:    username,
-		inv:     ItemList{newDildo()},
-		pos:     pos{x: 0, y: 0},
-		health:  10,
-		arousal: 10,
+		Name:    username,
+		Inv:     ItemList{newDildo()},
+		Pos:     pos{X: 0, Y: 0},
+		Health:  10,
+		Arousal: 10,
 	}
 	return result
 }
@@ -115,36 +117,36 @@ type ItemList []*Item
 
 // Position struct, for easy .pos.X
 type pos struct {
-	x int `json:"x"`
-	y int `json:"y"`
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 // generic Item struct, inherited by all Items
 type Item struct {
-	name     string   `json:"name"`               // Name of the Item
-	desc     string   `json:"desc"`               // Short description of the Item
-	labels   []string `json:"labels"`             // Array of descriptive labels which apply to the Item (think booru tagging)
-	weight   float32  `json:"weight"`             // Weight of the Item
-	owned    bool     `json:"owned"`              // Is the Item currently in the Player's inventory?
-	location string   `json:"location,omitempty"` // States where in the room the Item is (ground, wall, "the pedestal", etc) - unused if the Item is currently owned
-	contents ItemList `json:"contents"`           // so i herd u liek items / Used for chests/containers to contain more items
+	Name     string   `json:"name"`               // Name of the Item
+	Desc     string   `json:"desc"`               // Short description of the Item
+	Labels   []string `json:"labels"`             // Array of descriptive labels which apply to the Item (think booru tagging)
+	Weight   float32  `json:"weight"`             // Weight of the Item
+	Owned    bool     `json:"owned"`              // Is the Item currently in the Player's inventory?
+	Location string   `json:"location,omitempty"` // States where in the room the Item is (ground, wall, "the pedestal", etc) - unused if the Item is currently owned
+	Contents ItemList `json:"contents"`           // so i herd u liek items / Used for chests/containers to contain more items
 }
 
 // Pick up an Item from the room
 func (i *Item) pickUp() string {
-	if !i.owned {
+	if !i.Owned {
 		// TODO: pick up Items
-		return fmt.Sprintf("You pick up the %s.", i.name)
+		return fmt.Sprintf("You pick up the %s.", i.Name)
 	} else {
-		return "You already have the " + i.name + "!"
+		return "You already have the " + i.Name + "!"
 	}
 }
 
 // Drop an Item on the ground
 func (i *Item) drop() string {
-	if i.owned {
+	if i.Owned {
 		// TODO: drop Items on ground
-		return fmt.Sprintf("You drop the %s onto the ground.", i.name)
+		return fmt.Sprintf("You drop the %s onto the ground.", i.Name)
 	} else {
 		return "You can't drop that, you aren't holding it!"
 	}
@@ -152,63 +154,65 @@ func (i *Item) drop() string {
 
 // Set the Item to an error Item
 func (i *Item) makeError() error {
-	i.labels = []string{"err"}
-	i.location = ""
-	i.owned = false
-	i.desc = "Something went wrong with Item generation. Please contact the developer."
-	i.name = "Error Item"
-	i.weight = 696969
+	i.Labels = []string{"err"}
+	i.Location = ""
+	i.Owned = false
+	i.Desc = "Something went wrong with Item generation. Please contact the developer."
+	i.Name = "Error Item"
+	i.Weight = 696969
 
 	return nil
 }
 
 // Returns the name and description of the Item
 func (i *Item) getBasicInfo() []string {
-	return []string{i.name, i.desc}
+	return []string{i.Name, i.Desc}
 }
 
+/*
 // Instantiates a new empty Item.
 // Please ensure that you initialize it with appropriate values before using.
 func newEmptyItem() *Item {
 	return &Item{}
 }
+*/
 
 // Initializes an Item with Dildo properties
 // TODO: remove this, replace with default items field in world.json
 func newDildo() *Item {
 	result := &Item{
-		desc: "A medium sized, unassuming dildo. It is purple.",
-		name: "Modest Dildo",
+		Desc: "A medium sized, unassuming dildo. It is purple.",
+		Name: "Modest Dildo",
 	}
 	return result
 }
 
 // generic Room struct, is used to create each room
 type Room struct {
-	pos   pos      `json:"pos"`   // Position in the world of the room.
-	name  string   `json:"name"`  // Name of the room.
-	desc  string   `json:"desc"`  // Description of the room, output of "look" command
-	items ItemList `json:"items"` // Items contained in the room.
-	exits Exits    `json:"exits"` // Valid exits of the room
+	Pos   pos      `json:"pos"`   // Position in the world of the room.
+	Name  string   `json:"name"`  // Name of the room.
+	Desc  string   `json:"desc"`  // Description of the room, output of "look" command
+	Items ItemList `json:"items"` // Items contained in the room.
+	Exits Exits    `json:"exits"` // Valid exits of the room
 }
 
 // Which exits of a room are valid exits?
 // This can be changed at runtime (unlocking doors)
 type Exits struct {
-	north bool `json:"north"`
-	south bool `json:"south"`
-	east  bool `json:"east"`
-	west  bool `json:"west"`
+	North bool `json:"north"`
+	South bool `json:"south"`
+	East  bool `json:"east"`
+	West  bool `json:"west"`
 }
 
 // create a new room based on given coordinates from the given world json
 func newRoom(coords pos) *Room { // TODO: receive json in argument
 	room := &Room{
-		pos:   coords,
-		name:  "",         // TODO: grab name from world json
-		desc:  "",         // TODO: grab desc from world json
-		items: ItemList{}, // TODO: grab items from world json
-		exits: Exits{},    // TODO: grab exits from world json
+		Pos:   coords,
+		Name:  "",         // TODO: grab name from world json
+		Desc:  "",         // TODO: grab desc from world json
+		Items: ItemList{}, // TODO: grab items from world json
+		Exits: Exits{},    // TODO: grab exits from world json
 	}
 
 	return room
@@ -216,6 +220,26 @@ func newRoom(coords pos) *Room { // TODO: receive json in argument
 
 // Main function
 func main() {
+
+	// Command line flags for loading alternate config and world files
+	configPath := flag.String("config", "config.json", "-config <path>") // TODO: enable/disable web/telnet in config
+	worldPath := flag.String("world", "world.json", "-world <path>")
+
+	flag.Parse()
+
+	// Attempt to open these files
+	configFile, configErr := os.Open(*configPath)
+	worldFile, worldErr := os.Open(*worldPath)
+	defer configFile.Close()
+	defer worldFile.Close()
+
+	if configErr != nil {
+		fmt.Println("Error reading config file!\r\n" + configErr.Error())
+	}
+
+	if worldErr != nil {
+		fmt.Println("Error reading world file!\r\n" + worldErr.Error())
+	}
 
 	// TODO: load master map json into variable
 
@@ -289,6 +313,7 @@ func main() {
 
 // Generic message handler function
 // Designed to be client/protocol-independent for maximum portability
+// Returns a response string to print to the client, the string username of the client, and a bool stating whether a TCPMap needs to be created (only used for TCP).
 func messageReceived(args []string, username string) (string, string, bool) {
 
 	// start with empty string
@@ -315,14 +340,14 @@ func messageReceived(args []string, username string) (string, string, bool) {
 				// Player already exists
 				if playerExists {
 					response += "User exists, attempting to log in...\r\n\r\n"
-					fmt.Println("User " + p.name + " succesfully logged in")
+					fmt.Println("User " + p.Name + " succesfully logged in")
 					response += fmt.Sprintf("%s%s", introMessage, p.Stats()) // TODO: don't use the intro string here, also describe room
 				} else { // create new account
 					response += "Username does not exist, creating new Player profile...\r\n\r\n"
 					setPlayer(username, newPlayer(username)) // set Player in database
 					tmpPlayer, ok2 := getPlayer(username)    // get Player back from database to ensure successful creation
 					if ok2 {
-						fmt.Println("User " + tmpPlayer.name + " succesfully created account")
+						fmt.Println("User " + tmpPlayer.Name + " succesfully created account")
 
 						// TODO: create world from json, store in player object
 
