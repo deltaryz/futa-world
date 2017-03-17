@@ -1,7 +1,9 @@
-### futa.world
+# futa.world
 
 A text adventure engine written in Go, created for an erotic text adventure at [futa.world](http://futa.world) via web and telnet.
 
 ## Usage
 
-Modify `config.json` to set the details and network ports of your server. `world.json` contains all info about the game world.
+`config.json` contains the basic configuration for the server, `world.json` contains the game world in its entirety.
+
+The included `world.json` is identical to the one hosted at [futa.world](http://futa.world).
