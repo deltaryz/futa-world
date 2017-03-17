@@ -13,13 +13,14 @@ import (
 )
 
 // metadata constants
+// TODO: separate metadata constants strings into config file
 const ver = "0.0.1"
 const telnetPort = 23
 const webPort = 80
 
 // String displayed on connect
+// TODO: separate these into world json
 const welcomeString = "\r\nWelcome to futa.world! This is version " + ver + ", created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
-
 const introMessage = "You are PLACEHOLDER_NAME, a young mare from Ponyville. You have awoken to find yourself in an unknown location, and all you know is that you are REALLY itching to fuck something with your massive futa schlong.\r\n\r\n"
 
 // init data types
