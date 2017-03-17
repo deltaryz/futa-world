@@ -1,5 +1,7 @@
-// Server application for http://futa.world, an erotic pony-themed text adventure.
-// Currently supports telnet connections and also TODO: provide a web interface.
+// Server application for the futa-world text adventure engine
+// Currently supports telnet connections and also TODO: provides a web interface.
+// Please configure the variables in config.json for your server.
+// The game world is read from world.json.
 package main
 
 // TODO: do I need to use an ampersand like &SomeStruct{} if I want to make a new one without using a newSomeStruct() function?
