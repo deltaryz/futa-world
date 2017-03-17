@@ -37,11 +37,7 @@ func getPlayer(username string) (*player, bool) {
 
 	pl, exists := players[username]
 
-	if exists {
-		return pl, true
-	} else {
-		return pl, false
-	}
+	return pl, exists
 }
 
 // Sets a player in the map, ignoring whether it exists or not
@@ -61,11 +57,7 @@ func getTCPPlayer(conn *tcp_server.Client) (string, bool) {
 
 	username, exists := tcpConnections[conn]
 
-	if exists {
-		return username, true
-	} else {
-		return username, false
-	}
+	return username, exists
 }
 
 // Sets a TCP client's associated username
@@ -86,8 +78,8 @@ type player struct {
 	arousal int64    // she's a kinky fucker
 }
 
-// Returns a string with the player's stats
-func (p *player) getStats() string {
+// Stats returns a string with the player's stats
+func (p *player) Stats() string {
 	info := ""
 
 	info += "Health: " + strconv.FormatInt(p.health, 10) + "\r\nArousal: " + strconv.FormatInt(p.arousal, 10)
@@ -130,7 +122,7 @@ type item struct {
 func (i *item) pickUp() string {
 	if !i.owned {
 		// TODO: pick up items
-		return "You pick up the " + i.name + "."
+		return fmt.Sprintf("You pick up the %s.", i.name)
 	} else {
 		return "You already have the " + i.name + "!"
 	}
@@ -140,7 +132,7 @@ func (i *item) pickUp() string {
 func (i *item) drop() string {
 	if i.owned {
 		// TODO: drop items on ground
-		return "You drop the " + i.name + "."
+		return fmt.Sprintf("You drop the %s.", i.name)
 	} else {
 		return "You can't drop that, you aren't holding it!"
 	}
@@ -278,16 +270,14 @@ func messageReceived(args []string, username string, playerIsSet bool) (string, 
 					// TODO: passwords
 					response += "User exists, attempting to log in...\r\n\r\n"
 					fmt.Println("User " + pl.name + " succesfully logged in")
-					response += "You are a pony. aaaaa finish this later\r\n\r\n" // TODO: finish new game string
-					response += pl.getStats()
+					response += "You are a pony. aaaaa finish this later\r\n\r\n" + pl.Stats() // TODO: finish new game string
 				} else { // create new account
 					response += "Username does not exist, creating new player profile...\r\n\r\n"
 					ok := setPlayer(username, newPlayer(username))
 					tmpPlayer, ok := getPlayer(username)
 					if ok {
 						fmt.Println("User " + tmpPlayer.name + " succesfully created account")
-						response += "You are a pony. aaaaa finish this later\r\n\r\n" // TODO: finish new game string
-						response += tmpPlayer.getStats()
+						response += "You are a pony. aaaaa finish this later\r\n\r\n" + pl.Stats() // TODO: finish new game string
 					} else {
 						fmt.Println("Account creation derped")
 						response += "An error occured with logging in."
