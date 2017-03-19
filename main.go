@@ -400,7 +400,7 @@ func messageReceived(args []string, username string) (string, string, bool) {
 					fmt.Println("User " + p2.Name + " succesfully logged in")
 					response += fmt.Sprintf("%s%s", introMessage, p2.Stats()) // TODO: don't use the intro string here, also describe room
 				} else { // create new account
-					response += "Username does not exist, creating new Player profile...\r\n\r\n"
+					response += "Username does not exist, creating new player profile...\r\n\r\n"
 					setPlayer(username, newPlayer(username)) // set Player in database
 					tmpPlayer, ok2 := getPlayer(username)    // get Player back from database to ensure successful creation
 					if ok2 {
