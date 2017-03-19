@@ -1,0 +1,6 @@
+{
+  "telnet_enabled": true,
+  "telnet_port": 6969,
+  "web_enabled": true,
+  "web_port": 42069
+}

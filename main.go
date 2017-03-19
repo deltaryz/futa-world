@@ -7,24 +7,23 @@ package main
 // TODO: do I need to use an ampersand like &SomeStruct{} if I want to make a new one without using a newSomeStruct() function?
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/firstrow/tcp_server"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 )
 
-// metadata constants
-// TODO: separate these into config.json
-const ver = "0.0.1"
-const telnetPort = 23
-const webPort = 80
+const engineVer = "0.0.1"
 
 // String displayed on connect
 // TODO: separate these into world.json
-const welcomeString = "\r\nWelcome to futa.world! This is version " + ver + ", created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
+// TODO: separate the "please send any messagen to continue" to separate string
+const welcomeString = "\r\nWelcome to futa.world! This text adventure game was created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
 const introMessage = "You are PLACEHOLDER_NAME, a young mare from Ponyville. You have awoken to find yourself in an unknown location, and all you know is that you are REALLY itching to fuck something with your massive futa schlong.\r\n\r\n"
 
 // locker utility to prevent map collision
@@ -76,19 +75,41 @@ func setTCPPlayer(conn *tcp_server.Client, username string) bool {
 
 // Player object
 type Player struct {
-	Name    string        `json:"name"`    // Username given by the Player
-	Inv     ItemList      `json:"inv"`     // Array of Item objects currently owned by the Player
-	Pos     pos           `json:"pos"`     // Room position in x/y coordinates on the map
-	World   map[pos]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
-	Health  int64         `json:"health"`  // take a wild guess
-	Arousal int64         `json:"arousal"` // she's a kinky fucker
+	Name    string           `json:"name"`    // Username given by the Player
+	Inv     ItemList         `json:"inv"`     // Array of Item objects currently owned by the Player
+	Pos     pos              `json:"pos"`     // Room position in x/y coordinates on the map
+	World   map[string]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
+	Health  int64            `json:"health"`  // take a wild guess
+	Arousal int64            `json:"arousal"` // she's a kinky fucker
+}
+
+// Converts a `pos` type to a string with the format "XxY"
+func posToString(inputPos *pos) string {
+	return strconv.Itoa(inputPos.X) + "x" + strconv.Itoa(inputPos.Y)
+}
+
+// Converts a string formatted "XxY" to a `pos` object
+func stringToPos(inputPos string) (*pos, error) {
+	separatedStrings := strings.Split(inputPos, "x")
+	x, errX := strconv.Atoi(separatedStrings[0])
+	y, errY := strconv.Atoi(separatedStrings[1])
+
+	if errX != nil {
+		return nil, errX
+	}
+
+	if errY != nil {
+		return nil, errY
+	}
+
+	return &pos{X: x, Y: y}, nil
 }
 
 // Stats returns a string with the Player's stats, used for game start & stats command
 func (p *Player) Stats() string {
 	info := ""
 
-	info += "Health: " + strconv.FormatInt(p.Health, 10) + "\r\nArousal: " + strconv.FormatInt(p.Arousal, 10) // TODO: have a bool to enable/disable displaying of "nsfw" stats in world.json
+	info += "Health: " + strconv.FormatInt(p.Health, 10) + "\r\nArousal: " + strconv.FormatInt(p.Arousal, 10) // TODO: remove Arousal, add logic to properly display the wildcard stat from world.json
 
 	return info
 }
@@ -107,7 +128,7 @@ func newPlayer(username string) *Player {
 		Inv:     ItemList{newDildo()},
 		Pos:     pos{X: 0, Y: 0},
 		Health:  10,
-		Arousal: 10,
+		Arousal: 10, // TODO: change to a "wildcard" stat, world.json can define its name & this name is only used for string output
 	}
 	return result
 }
@@ -123,13 +144,16 @@ type pos struct {
 
 // generic Item struct, inherited by all Items
 type Item struct {
-	Name     string   `json:"name"`               // Name of the Item
-	Desc     string   `json:"desc"`               // Short description of the Item
-	Labels   []string `json:"labels"`             // Array of descriptive labels which apply to the Item (think booru tagging)
-	Weight   float32  `json:"weight"`             // Weight of the Item
-	Owned    bool     `json:"owned"`              // Is the Item currently in the Player's inventory?
-	Location string   `json:"location,omitempty"` // States where in the room the Item is (ground, wall, "the pedestal", etc) - unused if the Item is currently owned
-	Contents ItemList `json:"contents"`           // so i herd u liek items / Used for chests/containers to contain more items
+	Name       string   `json:"name"`               // Name of the Item
+	AltNames   []string `json:"alt_names"`          // Alternate shorthand names the player may refer to the item by
+	Desc       string   `json:"desc"`               // Short description of the Item
+	Labels     []string `json:"labels"`             // Array of descriptive labels which apply to the Item (think booru tagging)
+	Weight     float32  `json:"weight"`             // Weight of the Item
+	Owned      bool     `json:"owned"`              // Is the Item currently in the Player's inventory?
+	Location   string   `json:"location,omitempty"` // States where in the room the Item is (ground, wall, "the pedestal", etc) - unused if the Item is currently owned
+	Contents   ItemList `json:"contents"`           // so i herd u liek items / Used for chests/containers to contain more items. Yes, this works recursively.
+	Capacity   int      `json:"capacity"`           // Amount of items that can be contained within - set to 0 if it is not a container
+	Obtainable bool     `json:"obtainable"`         // Whether or not the player can pick up this item
 }
 
 // Pick up an Item from the room
@@ -181,8 +205,13 @@ func newEmptyItem() *Item {
 // TODO: remove this, replace with default items field in world.json
 func newDildo() *Item {
 	result := &Item{
-		Desc: "A medium sized, unassuming dildo. It is purple.",
-		Name: "Modest Dildo",
+		Name:       "Modest Dildo",
+		AltNames:   []string{"dildo"},
+		Desc:       "A medium sized, unassuming dildo. It is purple.",
+		Labels:     []string{"sextoy", "blunt", "weapon"}, // TODO: keep database of labels and their usage ingame
+		Weight:     2,
+		Owned:      true,
+		Obtainable: true,
 	}
 	return result
 }
@@ -218,20 +247,30 @@ func newRoom(coords pos) *Room { // TODO: receive json in argument
 	return room
 }
 
+type Config struct {
+	TelnetEnabled bool `json:"telnet_enabled"`
+	TelnetPort    int  `json:"telnet_port"`
+	WebEnabled    bool `json:"web_enabled"`
+	WebPort       int  `json:"web_port"`
+}
+
 // Main function
 func main() {
 
+	telnetPort := 0
+	webPort := 0
+
 	// Command line flags for loading alternate config and world files
-	configPath := flag.String("config", "config.json", "-config <path>") // TODO: enable/disable web/telnet in config
-	worldPath := flag.String("world", "world.json", "-world <path>")
+	configPath := flag.String("config", "config.json", "-config <path>")
+	//worldPath := flag.String("world", "world.json", "-world <path>")
 
 	flag.Parse()
 
 	// Attempt to open these files
-	configFile, configErr := os.Open(*configPath)
-	worldFile, worldErr := os.Open(*worldPath)
-	defer configFile.Close()
-	defer worldFile.Close()
+	configFile, configErr := ioutil.ReadFile(*configPath)
+	//worldFile, worldErr := ioutil.ReadFile(*worldPath)
+
+	worldErr := error(nil)
 
 	if configErr != nil {
 		fmt.Println("Error reading config file!\r\n" + configErr.Error())
@@ -245,15 +284,27 @@ func main() {
 		os.Exit(69)
 	}
 
+	var configSettings Config
+	errConfig := json.Unmarshal(configFile, &configSettings)
+
+	telnetPort = configSettings.TelnetPort
+	webPort = configSettings.WebPort
+	fmt.Println(configSettings.TelnetPort)
+
+	if errConfig == nil {
+		fmt.Println("Error reading config file, expect possible derpage when trying to connect!\r\n")
+	}
+
 	// TODO: load master map json into variable
 
 	// TCP setup
-	server := tcp_server.New("localhost:" + strconv.FormatInt(telnetPort, 10))
+	server := tcp_server.New("localhost:" + strconv.FormatInt(int64(telnetPort), 10))
 
 	// new TCP client has connected
 	server.OnNewClient(func(c *tcp_server.Client) {
 		// new client connected
 		// lets send some dank ass message
+		c.Send("This text adventure game is running on the futa-world engine: https://github.com/techniponi/futa-world\r\n") // You can remove this if you want, but I ask kindly that you do not.
 		c.Send(welcomeString)
 
 		fmt.Println(c.Conn().LocalAddr())
@@ -283,7 +334,7 @@ func main() {
 
 				// user is quitting game
 				if args[0] == "quit" || args[0] == "exit" {
-					c.Send("Thank you for playing futa.world!\r\n\r\n") // TODO: have this use global item string
+					c.Send("Thank you for playing futa.world!\r\n\r\n") // TODO: have this use global name string
 					c.Close()
 				} else { // user is not quitting game
 
@@ -312,6 +363,7 @@ func main() {
 	// start TCP server
 	server.Listen()
 
+	fmt.Println("Web server at port " + strconv.Itoa(webPort) + " would be running right now, if it was implemented yet.")
 	// TODO: web interface
 }
 
@@ -384,7 +436,13 @@ func messageReceived(args []string, username string) (string, string, bool) {
 		}
 		break
 
+	// observe surroundings
+	case "look":
+		// TODO: look command
+		break
+
 	default:
+		// TODO: custom actions (in world.json, this should be VERY extensive so that users don't need to add source code for most math comparisons/simple item manipulation)
 		if playerExists {
 			response += "Error: invalid command"
 		}
