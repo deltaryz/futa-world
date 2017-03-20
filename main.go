@@ -1,7 +1,7 @@
 // Server application for the futa-world text adventure engine
 // Currently supports telnet connections and also TODO: provides a web interface.
 // Please configure the variables in config.json for your server.
-// The game world is read from world.json.
+// The game world is read from game.json.
 package main
 
 // TODO: do I need to use an ampersand like &SomeStruct{} if I want to make a new one without using a newSomeStruct() function?
@@ -21,9 +21,9 @@ import (
 const engineVer = "0.0.1"
 
 // String displayed on connect
-// TODO: separate these into world.json
+// TODO: separate these into game.json
 // TODO: separate the "please send any messagen to continue" to separate string
-const welcomeString = "\r\nWelcome to futa.world! This text adventure game was created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\nYou must be at least 18 years of age to play this game. If you agree that you are 18 or older, please type any message and press enter.\r\n"
+const welcomeString = "\r\nWelcome to futa.world! This text adventure game was created by deltaryz.\r\n\r\nWARNING: EXPLICIT CONTENT\r\n"
 const introMessage = "You are PLACEHOLDER_NAME, a young mare from Ponyville. You have awoken to find yourself in an unknown location, and all you know is that you are REALLY itching to fuck something with your massive futa schlong.\r\n\r\n"
 
 // locker utility to prevent map collision
@@ -75,12 +75,12 @@ func setTCPPlayer(conn *tcp_server.Client, username string) bool {
 
 // Player object
 type Player struct {
-	Name    string           `json:"name"`    // Username given by the Player
-	Inv     ItemList         `json:"inv"`     // Array of Item objects currently owned by the Player
-	Pos     pos              `json:"pos"`     // Room position in x/y coordinates on the map
-	World   map[string]*Room `json:"world"`   // map of position structs to room objects TODO: init world property of players upon acct creation
-	Health  int64            `json:"health"`  // take a wild guess
-	Arousal int64            `json:"arousal"` // she's a kinky fucker
+	Name    string   `json:"name"`    // Username given by the Player
+	Inv     ItemList `json:"inv"`     // Array of Item objects currently owned by the Player
+	Pos     pos      `json:"pos"`     // Room position in x/y coordinates on the map
+	Game    Game     `json:"game"`    // Player's unique game json
+	Health  int64    `json:"health"`  // take a wild guess
+	Arousal int64    `json:"arousal"` // she's a kinky fucker
 }
 
 // Converts a `pos` type to a string with the format "XxY"
@@ -109,7 +109,7 @@ func stringToPos(inputPos string) (*pos, error) {
 func (p *Player) Stats() string {
 	info := ""
 
-	info += "Health: " + strconv.FormatInt(p.Health, 10) + "\r\nArousal: " + strconv.FormatInt(p.Arousal, 10) // TODO: remove Arousal, add logic to properly display the wildcard stat from world.json
+	info += "Health: " + strconv.FormatInt(p.Health, 10) + "\r\nArousal: " + strconv.FormatInt(p.Arousal, 10) // TODO: remove Arousal, add logic to properly display the wildcard stat from game.json
 
 	return info
 }
@@ -128,9 +128,16 @@ func newPlayer(username string) *Player {
 		Inv:     ItemList{newDildo()},
 		Pos:     pos{X: 0, Y: 0},
 		Health:  10,
-		Arousal: 10, // TODO: change to a "wildcard" stat, world.json can define its name & this name is only used for string output
+		Arousal: 10, // TODO: change to a "wildcard" stat, game.json can define its name & this name is only used for string output
 	}
 	return result
+}
+
+type Game struct {
+	GameTitle      string           `json:"game_title"`      // The title of the game
+	StartInventory ItemList         `json:"start_inventory"` // The inventory the player starts with
+	StartRoom      string           `json:"start_room"`      // Coordinates in "XxY" format
+	Rooms          map[string]*Room `json:"rooms"`           // map of position coordinates in "XxY" format to room objects TODO: init game property of players upon acct creation
 }
 
 // Slice of Items, such as an inventory or chest
@@ -202,7 +209,7 @@ func newEmptyItem() *Item {
 */
 
 // Initializes an Item with Dildo properties
-// TODO: remove this, replace with default items field in world.json
+// TODO: remove this, replace with default items field in game.json
 func newDildo() *Item {
 	result := &Item{
 		Name:       "Modest Dildo",
@@ -257,42 +264,47 @@ type Config struct {
 // Main function
 func main() {
 
-	telnetPort := 0
-	webPort := 0
+	telnetPort := 23
+	webPort := 80
 
-	// Command line flags for loading alternate config and world files
+	// Command line flags for loading alternate config and game files
 	configPath := flag.String("config", "config.json", "-config <path>")
-	//worldPath := flag.String("world", "world.json", "-world <path>")
+	gamePath := flag.String("game", "game.json", "-game <path>")
 
 	flag.Parse()
 
 	// Attempt to open these files
 	configFile, configErr := ioutil.ReadFile(*configPath)
-	//worldFile, worldErr := ioutil.ReadFile(*worldPath)
-
-	worldErr := error(nil)
+	gameFile, gameErr := ioutil.ReadFile(*gamePath)
 
 	if configErr != nil {
 		fmt.Println("Error reading config file!\r\n" + configErr.Error())
 	}
 
-	if worldErr != nil {
-		fmt.Println("Error reading world file!\r\n" + worldErr.Error())
+	if gameErr != nil {
+		fmt.Println("Error reading world file!\r\n" + gameErr.Error())
 	}
 
-	if configErr != nil || worldErr != nil {
+	if configErr != nil || gameErr != nil {
 		os.Exit(69)
 	}
 
 	var configSettings Config
 	errConfig := json.Unmarshal(configFile, &configSettings)
 
+	var masterGame Game
+	errGame := json.Unmarshal(gameFile, &masterGame)
+
 	telnetPort = configSettings.TelnetPort
 	webPort = configSettings.WebPort
-	fmt.Println(configSettings.TelnetPort)
+	//fmt.Println(configSettings.TelnetPort)
 
-	if errConfig == nil {
+	if errConfig != nil {
 		fmt.Println("Error reading config file, expect possible derpage when trying to connect!\r\n")
+	}
+
+	if errGame != nil {
+		fmt.Println("Error reading game file, expect many things to explode!\r\n")
 	}
 
 	// TODO: load master map json into variable
@@ -304,8 +316,9 @@ func main() {
 	server.OnNewClient(func(c *tcp_server.Client) {
 		// new client connected
 		// lets send some dank ass message
-		c.Send("This text adventure game is running on the futa-world engine: https://github.com/techniponi/futa-world\r\n") // You can remove this if you want, but I ask kindly that you do not.
+		c.Send("This text adventure game is running on the futa-world engine: https://github.com/techniponi/futa-world\r\n") // You can remove this if you really want, but I ask kindly that you do not.
 		c.Send(welcomeString)
+		c.Send("Please type any message and press enter to continue.\r\n")
 
 		fmt.Println(c.Conn().LocalAddr())
 	})
@@ -442,7 +455,7 @@ func messageReceived(args []string, username string) (string, string, bool) {
 		break
 
 	default:
-		// TODO: custom actions (in world.json, this should be VERY extensive so that users don't need to add source code for most math comparisons/simple item manipulation)
+		// TODO: custom actions (in game.json, this should be VERY extensive so that users don't need to add source code for most math comparisons/simple item manipulation)
 		if playerExists {
 			response += "Error: invalid command"
 		}

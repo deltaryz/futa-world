@@ -4,11 +4,11 @@ A text adventure engine written in Go, created for an erotic text adventure at [
 
 ### Usage
 
-`config.json` contains the basic configuration for the server, `world.json` contains the game world in its entirety.
+`config.json` contains the basic configuration for the server, `game.json` contains the game world in its entirety.
 
-Use the command-line arguments `-config=path/to/file` and `-world=path/to/file` to manually specify files, otherwise it will simply look in the working directory for `config.json` and `world.json`.
+Use the command-line arguments `-config=path/to/file` and `-game=path/to/file` to manually specify files, otherwise it will simply look in the working directory for `config.json` and `game.json`.
 
-The included `world.json` is identical to the one hosted at [futa.world](http://futa.world).
+The included `game.json` is identical to the one hosted at [futa.world](http://futa.world).
 
 ### Operation
 
