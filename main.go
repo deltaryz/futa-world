@@ -204,7 +204,7 @@ func (i *Item) getBasicInfo() []string {
 // Instantiates a new empty Item.
 // Please ensure that you initialize it with appropriate values before using.
 func newEmptyItem() *Item {
-	return &Item{}
+	return &Item{} // TODO: change this to a func to construct an item from the world json
 }
 */
 
